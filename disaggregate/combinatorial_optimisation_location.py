@@ -28,25 +28,33 @@ class CombinatorialOptimisation(object):
 
     def __init__(self):
         self.model = []
-
+           
+    
+    def train(self, metergroup, max_num_clusters = 3, resample_seconds=60, centroids=None):
+        self.model = []       
         
-    def train(self, metergroup, max_num_clusters = 3, resample_seconds=60):
-        self.model = []
-        load_kwargs={}
-        load_kwargs.setdefault('resample', True)
-        load_kwargs.setdefault('sample_period', resample_seconds)
-        
-        
-        for i, meter in enumerate(metergroup.submeters().meters):
-            print("Training model for submeter '{}'".format(meter))   
-            for chunk in meter.power_series(**load_kwargs):
-                states = cluster(chunk, max_num_clusters)
+        if centroids is None:            
+            load_kwargs={}
+            load_kwargs.setdefault('resample', True)
+            load_kwargs.setdefault('sample_period', resample_seconds) 
+            for i, meter in enumerate(metergroup.submeters().meters):
+                print("Training model for submeter '{}'".format(meter))
+                for chunk in meter.power_series(**load_kwargs):
+                    states = cluster(chunk, max_num_clusters)
+                    self.model.append({
+                        'states': states,
+                        'training_metadata': meter})
+                    break
+        else:
+            for i, meter in enumerate(metergroup.submeters().meters):
+                print("Setting model for submeter '{}'".format(meter))
+                states = centroids[meter.instance()]
                 self.model.append({
                     'states': states,
                     'training_metadata': meter})
-                break
+            
         print("Done training!")
-
+       
 
     def get_ordering_of_appliances_in_state_combinations_table(self):
         appliances_order = [model['training_metadata'].instance() for i, model in enumerate(self.model)]        

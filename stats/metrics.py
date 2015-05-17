@@ -1,10 +1,16 @@
 # -*- coding: utf-8 -*-
+
+from math import sqrt
+import nilmtk.metrics as nilmtk_metrics
 from nilmtk.metergroup import MeterGroup
-from pandas import DataFrame, Series, DateOffset
+from pandas import DataFrame, Series
 import numpy as np 
 import cPickle as pickle
-from math import sqrt
-   
+
+def f1_score(disag, original):
+    f1_score = nilmtk_metrics.f1_score(disag, original)
+    return f1_score
+
 def fraction_energy_assigned_correctly(predictions, ground_truth):    
     predictions_submeters = MeterGroup(meters=predictions.submeters().meters)
     ground_truth_submeters = MeterGroup(meters=ground_truth.submeters().meters)
@@ -18,207 +24,7 @@ def fraction_energy_assigned_correctly(predictions, ground_truth):
                         fraction_per_meter_predictions.values[meter_instance])
 
     return fraction
-    
-def generate_mains_power_series(mains):
-    load_kwargs={}
-    load_kwargs.setdefault('resample', True)
-    load_kwargs.setdefault('sample_period', 60)
-    load_kwargs['sections'] = mains.good_sections()
-    
-    chunks = list(mains.power_series(**load_kwargs))
-    return chunks
-    
-def generate_mains_power_series_from_apps(gt_power_series, timestamps_list, vampire_power):
-    sum_of_apps_power = []
-    for timestamp in timestamps_list:
-        sum_of_each_app_values = 0
-        for app in gt_power_series.keys():
-            sum_of_each_app_values += gt_power_series[app][timestamp]
-        sum_of_apps_power.append(sum_of_each_app_values + vampire_power)
-    
-    mains_created = Series(sum_of_apps_power, index=timestamps_list)
-    return mains_created
-    
-def generate_apps_power_series(loc):
-    load_kwargs={}
-    load_kwargs.setdefault('resample', True)
-    load_kwargs.setdefault('sample_period', 60)
-    ps = {}
-    for i in  loc.min_power_threshold:
-        ps[i] = list(loc.elec[i].power_series(**load_kwargs))[0]
-        
-    pst = dict(ps)
-    if loc.name == 'REDD':
-        rr1 = [sum(x) for x in zip(pst[3], pst[4])]
-        rr2 = [sum(x) for x in zip(pst[10], pst[20])]
-        srr1 = Series(rr1, index=ps[3].index)
-        srr2 = Series(rr2, index=ps[10].index)
-        pst[(3,4)] = srr1
-        pst[(10,20)] = srr2
-        del pst[3]
-        del pst[4]
-        del pst[10]
-        del pst[20]
-        
-    return ps, pst
-    
-def generate_state_combinations_all(co, mains):
-    from sklearn.utils.extmath import cartesian
-    centroids = [model['states'] for model in co.model]
-    state_combinations = cartesian(centroids)
-    
-    correction = 0#28.35
-    vampire_power = mains.vampire_power() - correction
-    print("vampire_power = {} watts".format(vampire_power))
-    n_rows = state_combinations.shape[0]
-    vampire_power_array = np.zeros((n_rows, 1)) + vampire_power
-    state_combinations = np.hstack((state_combinations, vampire_power_array))
-    summed_power_of_each_combination = np.sum(state_combinations, axis=1)
-    
-    ii = [5,6,7,8,9,11,12,13,14,15,16,17,18,19,(3,4),(10,20)]
-    cc = Series(centroids, index=ii)
-    return vampire_power, cc, state_combinations, summed_power_of_each_combination
 
-def find_nearest(array,value):
-    idx = (np.abs(array-value)).argmin()
-    return array[idx]
-    
-def get_gt_state_combinations(gt_apps, loc, vampire_power, timestamp, gt_power_series, co):
-    
-    values = {}
-    for app in gt_apps:
-        values[app] = gt_power_series[app][timestamp] 
-    
-    try:
-        v34 = values[3] + values[4]
-        del values[3]
-        del values[4]
-        values[(3,4)] = v34
-    except Exception:
-        tpt = 0  
-    
-    try:
-        v1020 = values[10] + values[20]
-        del values[10]
-        del values[20]
-        values[(10,20)] = v1020
-    except Exception:
-        tpt = 0
-    #gt_apps = list(gt_apps_orig)
-    #Take care of REDDs tuples names (3,4) and (10,20)   
-    
-    
-    if loc.name == 'REDD':
-        if 10 in gt_apps:
-            gt_apps.remove(10)
-            gt_apps.remove(20)
-            gt_apps.append((10,20))
-        if 3 in gt_apps:
-            gt_apps.remove(3)
-            gt_apps.remove(4)
-            gt_apps.append((3,4))
-       
-    centroids_gt = []
-    ordering = []
-
-    for model in co.model:
-        try:
-            if  model['training_metadata'].instance() in gt_apps:
-                centroids_gt.append(model['states'])
-                ordering.append(model['training_metadata'].instance())
-        except Exception:
-            for app in gt_apps:
-                try:
-                    if model['training_metadata'].instance() == app:
-                        centroids_gt.append(model['states'])
-                        ordering.append(model['training_metadata'].instance())
-                except Exception:
-                    continue                    
-    
-    #We know all these appliances are ON, take away the states when they are off
-    centroids_on = {}
-    for i,centroid_array in enumerate(centroids_gt):
-        cd = [centroid for centroid in centroid_array if centroid != 0]
-        centroids_on[gt_apps[i]] = np.array(cd)
-        
-    state_combinations =  [(v, find_nearest(centroids_on[v], values[v])) for v in values]   
-    values_of_combination = [find_nearest(centroids_on[v], values[v]) for v in values] 
-    summed_power_of_combination = sum(values_of_combination) + vampire_power
-
-    return state_combinations, summed_power_of_combination, ordering
-
-def get_difference(mains_from_apps,gt_sums):
-    c = []
-    for i, gs in enumerate(gt_sums):
-        difference = float(gs) - mains_from_apps.values[i]
-        c.append(difference)
-    
-    return c
-    
-def get_gt_values(chunks, loc, vampire_power, gt_power_series, co):
-    locations_lists  = []
-    appliances_lists = []
-    timestamps_list = []
-    mains_values = []
-    gt = []
-    gt_sums = []
-    gt_residuals = []
-    gt_states = []
-    for chunk in chunks:
-        for ts, value in enumerate(chunk):
-            timestamp = chunk.index[ts]
-            concurrent_events = loc.events_locations['Locations'][(timestamp - DateOffset(seconds = 60)):(timestamp)]
-            concurrent_appliances = loc.events_locations['Events'][(timestamp - DateOffset(seconds = 60)):(timestamp)]
-            
-            gt_appliances = None
-            gt_apps = []
-            for gt_event_ts in loc.appliances_status.index:
-                if gt_event_ts <= timestamp:
-                    gt_appliances = loc.appliances_status[str(gt_event_ts)]
-                    gt_ts = gt_event_ts
-            if gt_appliances is not None:
-                gt_apps = [v for i,v in enumerate(gt_appliances) if gt_appliances.values[0][i] == True]  
-            
-            
-            if (len(gt_apps) == 0):
-                gt.append([])
-                gt_sums.append(0)
-                gt_residuals.append(0)
-                gt_states.append([])
-            else:
-                gt_state_combinations, summ, order_of_appliances = get_gt_state_combinations(
-                                                                            gt_apps,
-                                                                            loc, 
-                                                                            vampire_power,
-                                                                            timestamp,
-                                                                            gt_power_series, 
-                                                                            co)
-                
-                gt_apps1 = [v[0] for v in gt_state_combinations if v[1] not in (0,vampire_power)]
-    
-                gt.append(gt_apps1)
-                gt_sums.append("{0:.2f}".format(summ))
-                gt_residuals.append("{0:.2f}".format((summ-value)))
-                 
-                gt_sc = [int(v[1]) for v in gt_state_combinations if v[1] not in (0,vampire_power)]
-                gt_states.append(gt_sc)
-            
-            
-            locs = []
-            [locs.extend(j) for j in concurrent_events.values]
-            locations_within_timespan = list(set(locs))
-            apps = []
-            [apps.extend(j) for j in concurrent_appliances.values]
-            appliances_within_timespan = list(set(apps))
-            
-            timestamps_list.append(timestamp)
-            mains_values.append("{0:.2f}".format(value))
-            locations_lists.append(locations_within_timespan)
-            appliances_lists.append(appliances_within_timespan)
-    
-    gt[0] = gt[1]
-    gt_states[0] = gt_states[1]        
-    return locations_lists, appliances_lists, timestamps_list, mains_values, gt, gt_sums, gt_residuals, gt_states
     
 def get_summed_power_of_combos(co, summed_power_of_each_combination):
     co_original_combo_sums = [ "{0:.2f}".format(summed_power_of_each_combination[index]) for index in co.co_indices_original]
@@ -277,7 +83,7 @@ def create_app_state_tuples(gt, gt_states, co_original_combos, combo_original_st
     loc_combo_states = [[(co_location_combos[i_combo][i_app],      combo_location_states[i_combo][i_app]) for i_app, app in enumerate(combo)]for i_combo, combo in enumerate(co_location_combos)]
     return gt_combo_states, co_combo_states, loc_combo_states
 
-def jaccard(gt_combo_states, co_combo_states, loc_combo_states):
+def jaccard3(gt_combo_states, co_combo_states, loc_combo_states):
     jaccard_co  = []
     jaccard_loc = []
     jaccard_co_states  = []
@@ -337,7 +143,7 @@ def jaccard(gt_combo_states, co_combo_states, loc_combo_states):
         jaccard_loc_states.append((len(gt_n_loc_states), len(gt_n_loc)))
     return jaccard_co, jaccard_loc, jaccard_co_states, jaccard_loc_states
 
-def jaccard2(gt_combo_states, co_combo_states, loc_combo_states):
+def jaccard(gt_combo_states, co_combo_states, loc_combo_states):
     jaccard_co  = []
     jaccard_loc = []
     jaccard_co_states  = []
@@ -513,63 +319,11 @@ def build_metrics_tables(fraction_original, fraction_loc, jaccard_results, total
     ma['06. NE co'] = maa['03. co NE']
     ma['07. NE loc'] = maa['04. loc NE']
     return m, ma
-    
-def compare_mains_and_gt_of_appliances(gt_power_series, mains_values, timestamps_list, vampire_power, gt_pst):
-    sum_of_apps_power = []
-    for timestamp in timestamps_list:
-        sum_of_each_app_values = 0
-        for app in gt_power_series.keys():
-            sum_of_each_app_values += gt_power_series[app][timestamp]
-        sum_of_apps_power.append(sum_of_each_app_values + vampire_power)
 
-    comparison_mains_and_apps_abs = []
-    comparison_mains_and_apps = []
-    for i,summ in enumerate(sum_of_apps_power):
-        diff = sum_of_apps_power[i] - float(mains_values[i])
-        comparison_mains_and_apps_abs.append(abs(diff))
-        comparison_mains_and_apps.append(diff)
-        
-    fmains = [float(value) for value in mains_values]
-    t = {}
-    t['summ of apps'] = sum_of_apps_power
-    t['mains'] = fmains
-    #t['diff'] = comparison_mains_and_apps
-
-    tt = {}
-    tt['diff'] = comparison_mains_and_apps
-    tt['diffabs'] = comparison_mains_and_apps_abs
-    
-    mains_from_apps = Series(sum_of_apps_power, index=timestamps_list)
-    smains = Series(fmains, index=timestamps_list)
-    #diffs       = Series(comparison_mains_and_apps, index=timestamps_list)
-    
-    diffs = DataFrame(tt, index=timestamps_list)    
-    d = DataFrame(t, index=timestamps_list)
-    
-    gt_all = DataFrame(gt_pst)
-    gt_all["sum"] = gt_all.sum(axis=1)
-    gt_all["mains_apps"] = gt_all['sum'] + vampire_power
-    gt_all['mains'] = smains
-    gt_all["diff1"] = abs(gt_all['mains_apps'] - gt_all['mains'])
-    gt_all["diff2"] = abs(gt_all['sum'] - gt_all['mains'])
-
-    return d, mains_from_apps, smains, diffs, gt_all
-    
-
-def get_apps(loc):
-    apps = loc.appliances_location.keys()
-    if loc.name == 'REDD':
-        apps.remove(3)
-        apps.remove(4)
-        apps.remove(10)
-        apps.remove(20)
-        apps.append((3,4))
-        apps.append((10,20))
-    return apps
     
 def get_predicted_values_from_combos_found(loc, combo_states):
     predicted_values = {}
-    apps = get_apps(loc)
+    apps = loc.metadata.get_apps()
         
     for app in apps:
         predicted_values[app] = []
@@ -592,7 +346,7 @@ def proportion_error_per_appliance(loc, mains_values, gt_values, predicted_value
     pr_proportion = {}
     proportion_error = {}
     
-    apps = get_apps(loc)
+    apps = loc.metadata.get_apps()
     for app in apps:
         proportion_gt = []
         proportion_pr = []
@@ -656,7 +410,7 @@ def normal_disaggregation_error_per_appliance(loc, gt_values, predicted_values):
     squares_of_diffs = {}
     squares_of_gts = {}
     
-    apps = get_apps(loc)
+    apps = loc.metadata.get_apps()
     for app in apps:
         square_of_difference = []
         square_of_gt = []
@@ -703,7 +457,7 @@ def normal_disaggregation_error_per_appliance_df(gt_values, predicted_values):
 def total_disaggregation_error(loc, squares_of_diffs, squares_of_gts):
     #NOT OK
     total_error = 0
-    apps = get_apps(loc)
+    apps = loc.metadata.get_apps()
     
     sum_sq_of_diffs = 0
     sum_sq_of_gts = 0
@@ -783,3 +537,184 @@ def dismantle_object(objects):
     diffs   = objects['mains_diffs']
     
     return d, m, ma, gt_pst, dis_co, dis_loc, smains, mains_from_apps, diffs
+    
+class Metrics(object):
+
+    def __init__(self, co, ground_truth, loc, disag_elec_location, disag_elec_original):
+        self.co  = co
+        self.gt  = ground_truth
+        self.loc = loc
+        self.metergroup = loc.elec
+        self.disag_elec_location = disag_elec_location        
+        self.disag_elec_original = disag_elec_original        
+        
+        self.f1_original = None
+        self.f1_location = None
+        self.f1_difference_original_and_location = None  
+        
+        self.fraction_assigned_correctly_original = None
+        self.fraction_assigned_correctly_location = None
+        
+        self.gt_sum_res, self.co_sum_res, self.loc_sum_res = None
+        self.co_original_combos, self.co_location_combos = None
+        self.co_original_states, self.co_location_states = None
+        
+        self.gt_combo_states, self.co_combo_states, self.loc_combo_states = None
+        
+        self.jacc_co, self.jacc_loc, self.jacc_co_states, self.jacc_loc_states = None
+        self.jacc_co_apps_states, self.jacc_loc_apps_states = None
+        self.jaccard_results = None
+                
+        self.power_series_apps_table_co = None       
+        self.power_series_apps_table_loc = None 
+        
+        self.proportion_error_co,  self.gt_proportion_co,  self.pr_proportion_co = None
+        self.proportion_error_loc, self.gt_proportion_loc, self.pr_proportion_loc = None
+        
+        self.normal_error_co, self.sqrs_co = None
+        self.normal_error_loc, self.sqrs_loc = None
+        self.total_error_co = None
+        self.total_error_loc = None
+        
+        self.results_disaggregation = None
+        self.results_metrics = None   
+        self.results_metrics_appliances = None  
+        return
+        
+    def calculate_f1_score(self):
+        self.f1_original = f1_score(self.disag_elec_original, self.metergroup)
+        self.f1_location = f1_score(self.disag_elec_location, self.metergroup)
+        
+        diff1  = [self.f1_location.values[i] - self.f1_origina.values[i] for i,v in enumerate(self.f1_location)]
+        self.f1_difference_original_and_location = Series(diff1, index=self.f1_location.index)             
+        return
+        
+    def calculate_fraction_energy_assigned_correctly(self):
+        self.fraction_assigned_correctly_original = fraction_energy_assigned_correctly(self.disag_elec_original, self.metergroup)
+        self.fraction_assigned_correctly_location = fraction_energy_assigned_correctly(self.disag_elec_location, self.metergroup)
+        return
+        
+    def calculate_sum_and_residual_of_found_combos(self):
+        #Sums of found combos and corresponding residuals
+        self.co_combo_sums_original, self.co_combo_sums_location            = get_summed_power_of_combos(self.co, self.gt.summed_power_of_each_combination)
+        self.co_combo_residuals_original, self.co_combo_residuals_location  = get_residuals_of_combos(self.co)
+        self.gt_sum_res, self.co_sum_res, self.loc_sum_res                = create_sum_residual_tuples(self.gt.gt_appliances_summed_power, 
+                                                                                        self.gt.gt_appliances_residual, 
+                                                                                        self.co_combo_sums_original, 
+                                                                                        self.co_combo_residuals_original, 
+                                                                                        self.co_combo_sums_location, 
+                                                                                        self.co_combo_residuals_location)
+        return
+
+    def get_app_and_states_of_combos(self):
+        #Appliances and states guessed
+        self.co_original_combos, self.co_location_combos   = get_appliances_in_combos(self.co, self.loc, self.gt.state_combinations)
+        self.co_original_states, self.co_location_states   = get_states_of_appliances_in_combos(self.co, self.gt.vampire_power, self.gt.state_combinations)
+        self.gt_combo_states, self.co_combo_states, self.loc_combo_states = create_app_state_tuples(self.get.gt_appliances, 
+                                                                                     self.get_appliances_states, 
+                                                                                     self.co_original_combos, 
+                                                                                     self.co_original_states, 
+                                                                                     self.co_location_combos, 
+                                                                                     self.co_location_states)
+        return
+                                                                                     
+                                                                                
+    def calculate_jaccard(self):     
+
+        if not all([self.gt_combo_states, self.co_combo_states, self.loc_combo_states]):
+            print ('Run first: get_app_and_states_of_combos')
+            return
+            
+        #Jaccard
+        self.jacc_co, self.jacc_loc, self.jacc_co_states, self.jacc_loc_states = jaccard(self.gt_combo_states, self.co_combo_states, self.loc_combo_states)
+        self.jacc_co_apps_states, self.jacc_loc_apps_states     = create_jaccard_apps_states_tuples(self.jacc_co, self.jacc_loc, self.jacc_co_states, self.jacc_loc_states)
+        self.jaccard_results                                    = jaccard_total(self.jacc_co, self.jacc_loc, self.jacc_co_states, self.jacc_loc_states)
+        
+        return
+        
+    def get_apps_power_series_from_combos_found(self):
+        pr_co = get_predicted_values_from_combos_found(self.loc, self.co_combo_states)
+        pr_loc = get_predicted_values_from_combos_found(self.loc, self.loc_combo_states)
+        
+        spr_co  = predicted_values_to_series(pr_co, self.gt.timestamps)
+        spr_loc = predicted_values_to_series(pr_loc, self.gt.timestamps)
+        dis_co = DataFrame(spr_co)
+        dis_loc = DataFrame(spr_loc)
+                
+        self.power_series_apps_table_co = dis_co       
+        self.power_series_apps_table_loc = dis_loc       
+        
+        return
+        
+    def calculate_proportion_error(self):        
+        #Proportion Error per appliance
+        self.proportion_error_co,  self.gt_proportion_co,  self.pr_proportion_co   = proportion_error_per_appliance_df(self.gt.power_series_mains_with_timestamp, self.gt.power_series_apps_table, self.power_series_apps_table_co)
+        self.proportion_error_loc, self.gt_proportion_loc, self.pr_proportion_loc  = proportion_error_per_appliance_df(self.gt.power_series_mains_with_timestamp, self.gt.power_series_apps_table, self.power_series_apps_table_loc)
+        return
+                
+    def calculate_normal_disaggregation_error(self):        
+        #Normal Disaggregation Error per appliance
+        self.normal_error_co, self.sqrs_co   = normal_disaggregation_error_per_appliance_df(self.gt.power_series_apps_table, self.power_series_apps_table_co)
+        self.normal_error_loc, self.sqrs_loc = normal_disaggregation_error_per_appliance_df(self.gt.power_series_apps_table, self.power_series_apps_table_loc)
+
+        return
+                
+    def calculate_total_disaggregation_error(self):        
+        #Total Disaggregation Error
+        self.total_error_co  = total_disaggregation_error_df(self.gt.power_series_apps_table, self.power_series_apps_table_co)
+        self.total_error_loc = total_disaggregation_error_df(self.gt.power_series_apps_table, self.power_series_apps_table_loc)
+        return
+        
+    def calculate(self):
+        self.calculate_f1_score()
+        self.calculate_fraction_energy_assigned_correctly()
+        self.calculate_sum_and_residual_of_found_combos()
+        self.get_app_and_states_of_combos()
+        self.calculate_jaccard()
+        self.get_apps_power_series_from_combos_found()
+        self.calculate_proportion_error()
+        self.calculate_normal_disaggregation_error()
+        self.calculate_total_disaggregation_error()
+        return
+
+    def build_results_tables(self):
+        #Build dataframes to show results more clearly
+        d = build_results_table(self.gt.event_locations, self.event_appliances, 
+                                self.gt_combo_states, self.co_combo_states, self.loc_combo_states,
+                                self.gt.power_series_mains, 
+                                self.gt_sum_res, self.co_sum_res, self.loc_sum_res,
+                                self.jacc_co_apps_states, self.jacc_loc_apps_states,
+                                self.gt.timestamps)
+        
+        m, ma = build_metrics_tables(self.fraction_assigned_correctly_original, self.fraction_assigned_correctly_location, 
+                                     self.jaccard_results, 
+                                     self.total_error_co, self.total_error_loc, 
+                                     self.proportion_error_co, self.proportion_error_loc, 
+                                     self.normal_error_co, self.normal_error_loc,
+                                     self.gt_proportion_co, self.pr_proportion_co, self.pr_proportion_loc)
+        
+        self.results_disaggregation = d
+        self.results_metrics = m   
+        self.results_metrics_appliances = ma                      
+        return
+                         
+    def save_to_files(self, fn):
+        save_to_files(fn, self.results_disaggregation, self.results_metrics, self.results_metrics_appliances)
+        return
+
+    def save_objects(self, fn):
+        save_objects(fn,
+                     self.results_disaggregation, self.results_metrics, self.results_metrics_appliances,
+                     self.power_series_apps_table, self.power_series_apps_table_co, self.power_series_apps_table_loc,
+                     self.gt.power_series_mains_with_timestamp, self.gt.power_series_mains_from_apps,
+                     self.gt.comparison)
+        return
+
+    def read_objects(self, fn):
+        objects = read_objects(fn)
+        return objects
+        
+        
+##Read objects
+#r1_objects = metrics.read_objects(fn_path + fn_obj)
+#d, m, ma, gt_pst, dis_co, dis_loc, smains, mains_from_apps, diffs = metrics.dismantle_object(r1_objects)

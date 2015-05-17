@@ -6,10 +6,14 @@ from pandas import *
 import numpy as np
 import copy
 from pandas import DataFrame, Series, DateOffset
+
 import sys
-mypath = '/home/t7/Dropbox/Documents/TUDelft/Thesis/Code/nilmtk'
+mypath = '/home/t7/Dropbox/Documents/TUDelft/Thesis/Code/NILM-Loc'
 sys.path.append(mypath)
-import smooth as smooth
+
+import preprocessing.smooth as smooth
+import settings as settings
+from metadata.metadata import Metadata
 
 class LocationInference(object):
     """
@@ -23,159 +27,35 @@ class LocationInference(object):
     
     @author: Antonio Reyes Lúa - TU Delft 2015
     """
-
-    h5_eco  = '/home/t7/Dropbox/Documents/TUDelft/Thesis/Datasets/ETHZ_ECO/house_2/eco-h2.h5'
-    h5_redd = '/home/t7/Dropbox/Documents/TUDelft/Thesis/Datasets/REDD/redd.h5'
-    
-    appliances_location_eco = {4:['hall'], #tablet computer charger
-                               5:['kitchen'], #dish washer
-                               6:['kitchen'], #air handling unit
-                               7:['kitchen'], #fridge
-                               8:['living room'], #HTPC
-                               9:['kitchen'], #freezer
-                               10:['kitchen'], #kettle
-                               11:['bedroom'], #lamp
-                               12:['bedroom'], #laptop
-                               13:['kitchen'], #stove
-                               14:['living room'], #television
-                               15:['living room'] #audio system
-                               }                            
-        
-    #TODO decide correct location for each lightning in REDD
-    appliances_location_redd ={3:['kitchen'], #oven
-                               4:['kitchen'], #oven
-                               5:['kitchen'], #fridge
-                               6:['kitchen'], #dishwasher
-                               7:['kitchen'], #kitchen outlets
-                               8:['kitchen'], #kitchen outlets
-                               9:['bedroom'], #lightning                
-                               10:['bathroom'], #washer dryer
-                               11:['kitchen'], #microwave
-                               12:['bathroom'], #bathroom_gfi
-                               13:['living room'], #electric heat
-                               14:['kitchen'], #stove
-                               15:['kitchen'], #kitchen outlets
-                               16:['kitchen'], #kitchen outlets                  
-                               17:['bathroom'], #lightning 
-                               18:['living room'], #lightning 
-                               19:['bathroom'], #washer dryer
-                               20:['bathroom'] #washer dryer
-                               }
-    
-    min_power_threshold_eco = {4:100, #tablet computer charger - Not really useful since always charging, 
-                               5:1000, #dish washer
-                               6:20, #air handling unit
-                               7:1100, #fridge
-                               8:20, #HTPC
-                               9:1100, #freezer
-                               10:300, #kettle
-                               11:10, #lamp
-                               12:10, #laptop
-                               13:20, #stove
-                               14:70, #television
-                               15:20  #audio system
-                               }
-                               
-    #TODO recheck values for some appliances. Some have too many transitions
-    min_power_threshold_redd ={3:1600, #oven
-                               4:2200, #oven
-                               5:2500, #fridge 
-                               6:30,#dishwasher
-                               7:2300, #kitchen outlets
-                               8:30, #kitchen outlets
-                               9:50, #lightning - mostly ON during the night         
-                               10:100, #washer dryer
-                               11:50, #microwave
-                               12:30, #bathroom_gfi
-                               13:100, #electric heat
-                               14:1200, #stove
-                               15:1000, #kitchen outlets
-                               16:1400, #kitchen outlets                  
-                               17:55, #lightning - mostly ON during the afternoon
-                               18:5, #lightning - mostly ON during a short period before midnight
-                               19:25, #washer dryer
-                               20:100 #washer dryer
-                               }
-   
-    #These are practically the same as the ones above. The main difference is that the ones 
-    #above are intended to describe user interactions and these are for describing when an
-    #appliance is consuming power even without user intervention. This is the case of the
-    #fridge and of kitchen outlets 7,8 that are always drawing power.
-    min_power_consuming_threshold_redd ={
-                               3:1600, #oven
-                               4:2200, #oven
-                               5:25, #fridge 
-                               6:200,#dishwasher
-                               7:10, #kitchen outlets
-                               8:10, #kitchen outlets
-                               9:50, #lightning - mostly ON during the night         
-                               10:100, #washer dryer
-                               11:50, #microwave
-                               12:30, #bathroom_gfi
-                               13:100, #electric heat
-                               14:1200, #stove
-                               15:1000, #kitchen outlets
-                               16:1400, #kitchen outlets                  
-                               17:55, #lightning - mostly ON during the afternoon
-                               18:5, #lightning - mostly ON during a short period before midnight
-                               19:25, #washer dryer
-                               20:100 #washer dryer
-                               }
-    
-    min_power_consuming_threshold_eco = {
-                               4:100, #tablet computer charger - Not really useful since always charging, 
-                               5:1000, #dish washer
-                               6:20, #air handling unit
-                               7:1100, #fridge
-                               8:20, #HTPC
-                               9:1100, #freezer
-                               10:300, #kettle
-                               11:10, #lamp
-                               12:10, #laptop
-                               13:20, #stove
-                               14:70, #television
-                               15:20  #audio system
-                               }                           
-                               
-    user_dependent_appliances_redd = [9,12,17,18]
-    user_dependent_appliances_eco  = [8,11,12,14,15]
-    
-    minimum_timespan_threshold = 30 #seconds
-
           
-    def __init__(self, dataset_name, smoothen=True):  
+    minimum_timespan_threshold = 30 #seconds
+          
+    def __init__(self, dataset_name, smoothen=True, h5_path=None, house_number=1):  
         """
         Initialize the object depending on the dataset being used.
         Probably good idea to implement being able to choose the house number
         and probably even pass the min_power_threshold as parameter.        
         """
+        
         self.smoothed = smoothen
         self.name = dataset_name
+        self.metadata = Metadata(dataset_name)
         if dataset_name == 'REDD':
-            self.min_index = 3
-            self.max_index = 21
-            self.min_power_threshold = self.min_power_threshold_redd
-            self.min_power_consuming_threshold = self.min_power_consuming_threshold_redd
-            self.dataset = DataSet(self.h5_redd)
-            self.elec = self.dataset.buildings[1].elec
-            self.appliances_location = self.appliances_location_redd
-            self.user_dependent_appliances = self.user_dependent_appliances_redd
+            if h5_path is None:
+                h5_path = settings.h5_redd            
+            self.dataset = DataSet(h5_path)        
+            self.elec = self.dataset.buildings[house_number].elec
         elif dataset_name == 'ECO':
-            self.min_index = 4
-            self.max_index = 16
-            self.min_power_threshold = self.min_power_threshold_eco
-            self.min_power_consuming_threshold = self.min_power_consuming_threshold_eco
-            self.dataset = DataSet(self.h5_eco)
-            self.elec = self.dataset.buildings[2].elec
-            self.appliances_location = self.appliances_location_eco
-            self.user_dependent_appliances = self.user_dependent_appliances_eco
+            if h5_path is None:
+                h5_path = settings.h5_eco
+            self.dataset = DataSet(h5_path)        
+            self.elec = self.dataset.buildings[house_number].elec
+        elif dataset_name == 'SMART':
+            print(dataset_name + ' not yet implemented')
+        elif dataset_name == 'IAWE':
+            print(dataset_name + ' not yet implemented')
         else:
-            self.min_index = 0
-            self.max_index = 0
-            self.min_power_threshold = {}
-            self.min_power_consuming_threshold = {}
-            self.appliances_location = {}
-            self.user_dependent_appliances = []
+            print('Invalid datasetname')
             
         
     def calculate_ON_times(self):
@@ -185,9 +65,9 @@ class LocationInference(object):
         """
         
         self.appliances_ON_times = {}
-        for i in range(self.min_index, self.max_index):
+        for i in range(self.metadata.min_index, self.metadata.max_index):
             elecmeter = self.elec[i]
-            min_power = self.min_power_threshold[i]
+            min_power = self.metadata.min_power_threshold[i]
             self.appliances_ON_times[i] = list(elecmeter.when_on(on_power_threshold=min_power))[0]
         
 #        if self.name == 'REDD':
@@ -219,9 +99,9 @@ class LocationInference(object):
         """
         
         self.appliances_consuming_times = {}
-        for i in range(self.min_index, self.max_index):
+        for i in range(self.metadata.min_index, self.metadata.max_index):
             elecmeter = self.elec[i]
-            min_power = self.min_power_consuming_threshold[i]
+            min_power = self.metadata.min_power_consuming_threshold[i]
             self.appliances_consuming_times[i] = list(elecmeter.when_on(on_power_threshold=min_power))[0]
         
         return self.appliances_consuming_times
@@ -552,6 +432,7 @@ class LocationInference(object):
         self.count_daily_events()        
         self.count_daily_events_per_app()
         
+
                     
                 
         
