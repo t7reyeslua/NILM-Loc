@@ -86,9 +86,9 @@ class CombinatorialOptimisation(object):
         
         locations = []
         if (user_dependent_only):
-            [locations.extend(location_data.appliances_location[app]) for app in appliances_list if (app in location_data.user_dependent_appliances)]
+            [locations.extend(location_data.metadata.appliances_location[app]) for app in appliances_list if (app in location_data.metadata.user_dependent_appliances)]
         else:
-            [locations.extend(location_data.appliances_location[app]) for app in appliances_list]
+            [locations.extend(location_data.metadata.appliances_location[app]) for app in appliances_list]
         return list(set(locations))
         
          
@@ -106,7 +106,7 @@ class CombinatorialOptimisation(object):
                 appliances_in_state_combination.append(app)                
         
         locations = []
-        [locations.extend(location_data.appliances_location[app]) for app in appliances_in_state_combination]        
+        [locations.extend(location_data.metadata.appliances_location[app]) for app in appliances_in_state_combination]        
         return appliances_in_state_combination, list(set(locations)) 
        
         
@@ -181,7 +181,7 @@ class CombinatorialOptimisation(object):
         #This method constructs only the valid state combinations from the beginning.
         
         #TODO any or all
-        appliances_in_valid_locations_temp = [app for app in loc.appliances_location if any(locs in loc.appliances_location[app] for locs in valid_locations)]
+        appliances_in_valid_locations_temp = [app for app in loc.metadata.appliances_location if any(locs in loc.metadata.appliances_location[app] for locs in valid_locations)]
         appliances_in_valid_locations_temp.extend(last_combination_appliances)
         
         #Fridge mayalways start running

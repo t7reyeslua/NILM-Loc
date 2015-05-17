@@ -555,24 +555,40 @@ class Metrics(object):
         self.fraction_assigned_correctly_original = None
         self.fraction_assigned_correctly_location = None
         
-        self.gt_sum_res, self.co_sum_res, self.loc_sum_res = None
-        self.co_original_combos, self.co_location_combos = None
-        self.co_original_states, self.co_location_states = None
+        self.gt_sum_res = None
+        self.co_sum_res = None
+        self.loc_sum_res = None
+        self.co_original_combos = None
+        self.co_location_combos = None
+        self.co_original_states = None
+        self.co_location_states = None
         
-        self.gt_combo_states, self.co_combo_states, self.loc_combo_states = None
+        self.gt_combo_states = None
+        self.co_combo_states = None
+        self.loc_combo_states = None
         
-        self.jacc_co, self.jacc_loc, self.jacc_co_states, self.jacc_loc_states = None
-        self.jacc_co_apps_states, self.jacc_loc_apps_states = None
+        self.jacc_co = None
+        self.jacc_loc = None
+        self.jacc_co_states = None
+        self.jacc_loc_states = None
+        self.jacc_co_apps_states = None
+        self.jacc_loc_apps_states = None
         self.jaccard_results = None
                 
         self.power_series_apps_table_co = None       
         self.power_series_apps_table_loc = None 
         
-        self.proportion_error_co,  self.gt_proportion_co,  self.pr_proportion_co = None
-        self.proportion_error_loc, self.gt_proportion_loc, self.pr_proportion_loc = None
+        self.proportion_error_co = None
+        self.gt_proportion_co = None
+        self.pr_proportion_co = None
+        self.proportion_error_loc = None
+        self.gt_proportion_loc = None
+        self.pr_proportion_loc = None
         
-        self.normal_error_co, self.sqrs_co = None
-        self.normal_error_loc, self.sqrs_loc = None
+        self.normal_error_co = None
+        self.sqrs_co = None
+        self.normal_error_loc = None
+        self.sqrs_loc = None
         self.total_error_co = None
         self.total_error_loc = None
         
@@ -585,7 +601,7 @@ class Metrics(object):
         self.f1_original = f1_score(self.disag_elec_original, self.metergroup)
         self.f1_location = f1_score(self.disag_elec_location, self.metergroup)
         
-        diff1  = [self.f1_location.values[i] - self.f1_origina.values[i] for i,v in enumerate(self.f1_location)]
+        diff1  = [self.f1_location.values[i] - self.f1_original.values[i] for i,v in enumerate(self.f1_location)]
         self.f1_difference_original_and_location = Series(diff1, index=self.f1_location.index)             
         return
         
@@ -610,8 +626,8 @@ class Metrics(object):
         #Appliances and states guessed
         self.co_original_combos, self.co_location_combos   = get_appliances_in_combos(self.co, self.loc, self.gt.state_combinations)
         self.co_original_states, self.co_location_states   = get_states_of_appliances_in_combos(self.co, self.gt.vampire_power, self.gt.state_combinations)
-        self.gt_combo_states, self.co_combo_states, self.loc_combo_states = create_app_state_tuples(self.get.gt_appliances, 
-                                                                                     self.get_appliances_states, 
+        self.gt_combo_states, self.co_combo_states, self.loc_combo_states = create_app_state_tuples(self.gt.gt_appliances, 
+                                                                                     self.gt.gt_appliances_states, 
                                                                                      self.co_original_combos, 
                                                                                      self.co_original_states, 
                                                                                      self.co_location_combos, 
@@ -679,9 +695,9 @@ class Metrics(object):
 
     def build_results_tables(self):
         #Build dataframes to show results more clearly
-        d = build_results_table(self.gt.event_locations, self.event_appliances, 
+        d = build_results_table(self.gt.event_locations, self.gt.event_appliances, 
                                 self.gt_combo_states, self.co_combo_states, self.loc_combo_states,
-                                self.gt.power_series_mains, 
+                                self.gt.mains_values, 
                                 self.gt_sum_res, self.co_sum_res, self.loc_sum_res,
                                 self.jacc_co_apps_states, self.jacc_loc_apps_states,
                                 self.gt.timestamps)

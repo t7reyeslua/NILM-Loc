@@ -29,7 +29,7 @@ class GroundTruth(object):
         self.timestamps = None
         self.mains_values = None
         self.gt_appliances = None
-        self.get_appliances_states = None
+        self.gt_appliances_states = None
         self.gt_appliances_summed_power = None
         self.gt_appliances_residual = None
         self.ground_truth_table = None
@@ -57,7 +57,7 @@ class GroundTruth(object):
         
         #Get power series of each channel (elecmeter)
         ps = {}
-        for i in  self.loc.min_power_threshold:
+        for i in  self.loc.metadata.min_power_threshold:
             ps[i] = list(self.loc.elec[i].power_series(**load_kwargs))[0]
             
         #Group corresponding channels to get power series of appliance.
@@ -210,7 +210,7 @@ class GroundTruth(object):
         self.timestamps = timestamps_list
         self.mains_values = mains_values
         self.gt_appliances = gt
-        self.get_appliances_states = gt_states
+        self.gt_appliances_states = gt_states
         self.gt_appliances_summed_power = gt_sums
         self.gt_appliances_residual = gt_residuals
         
@@ -296,9 +296,9 @@ class GroundTruth(object):
         
     def compare_mains_and_gt_of_appliances(self):
         
-        if not all([self.loc, self.co, self.timestamps, self.vampire_power, self.mains_values, self.power_series_mains_from_apps, self.power_series_apps_table]):
-            print ('Run first: generate_mains_power_series_from_apps, generate_apps_power_series, generate_state_combinations_all, generate_gt_values.')
-            return
+        #if not all([self.loc, self.co, self.timestamps, self.vampire_power, self.mains_values, self.power_series_mains_from_apps, self.power_series_apps_table]):
+         #   print ('Run first: generate_mains_power_series_from_apps, generate_apps_power_series, generate_state_combinations_all, generate_gt_values.')
+         #   return
             
         sum_of_apps_power = self.power_series_mains_from_apps.values
         comparison_mains_and_apps_abs = []
@@ -315,23 +315,24 @@ class GroundTruth(object):
         t['4. diffabs'] = comparison_mains_and_apps_abs
         d = DataFrame(t, index=self.timestamps)
         
-        
-        gt_all = DataFrame(self.power_series_apps_table)
-        gt_all["sum"] = gt_all.sum(axis=1)
-        gt_all["mains_apps"] = gt_all['sum'] + self.vampire_power
-        gt_all['mains'] = self.mains_values
-        gt_all["diff1"] = abs(gt_all['mains_apps'] - gt_all['mains'])
-        gt_all["diff2"] = abs(gt_all['sum'] - gt_all['mains'])
+#        
+#        gt_all = DataFrame(self.power_series_apps_table)
+#        gt_all["sum"] = gt_all.sum(axis=1)
+#        gt_all["mains_apps"] = gt_all['sum'] + self.vampire_power
+#        gt_all['mains'] = self.mains_values
+#        gt_all["diff1"] = abs(gt_all['mains_apps'] - gt_all['mains'])
+#        gt_all["diff2"] = abs(gt_all['sum'] - gt_all['mains'])
     
         self.comparison = d
-        self.comparison_extended = gt_all
-        return d, gt_all
+#        self.comparison_extended = gt_all
+        return d #, gt_all
         
     def generate(self):
         self.generate_state_combinations_all()
         self.generate_mains_power_series()
         self.generate_apps_power_series()
         self.generate_gt_values()
+        self.generate_mains_power_series_from_apps()
         self.compare_mains_and_gt_of_appliances()
         
         

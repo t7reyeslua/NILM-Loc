@@ -233,7 +233,7 @@ class LocationInference(object):
 
         for i in self.appliances_triggers_reduced.index:
             l = []
-            [l.extend(self.appliances_location[j]) for j in self.appliances_triggers_reduced[i]]
+            [l.extend(self.metadata.appliances_location[j]) for j in self.appliances_triggers_reduced[i]]
             s = list(set(l))
             self.locations[i] = s
             
@@ -400,7 +400,7 @@ class LocationInference(object):
         self.count_daily_events = dd
 
     def count_daily_events_per_app(self):
-        apps = self.appliances_location.keys()
+        apps = self.metadata.get_channels()
         r = {}
         for app in apps:
             r[app] = []
