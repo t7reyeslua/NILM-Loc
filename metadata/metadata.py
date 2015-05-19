@@ -132,7 +132,7 @@ centroids_redd = {5         :np.array([0, 49, 198]), #fridge
                   16        :np.array([0,1450]),     #kitchen outlets
                   17        :np.array([0,65]),       #lightning
                   18        :np.array([0,45,60]),    #lightning
-                  19        :np.array([0]),    #lightning
+                  19        :np.array([0]),          #lightning
                   (3, 4)    :np.array([0,4200]),     #electric oven
                   (10, 20)  :np.array([0,3750])      #washer dryer
                   }
@@ -170,7 +170,7 @@ class Metadata(object):
             self.centroids = centroids_eco
         elif dataset_name == 'SMART': 
             print(dataset_name + ' metadata not yet implemented')
-        elif dataset_name == 'IAWE':  
+        elif dataset_name == 'iAWE':  
             print(dataset_name + ' metadata not yet implemented')
 
     def get_apps(self):

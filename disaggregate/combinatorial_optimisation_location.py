@@ -186,6 +186,7 @@ class CombinatorialOptimisation(object):
         
         #Fridge mayalways start running
         #TODO append 5 
+        #TODO include always consuming appliances
         appliances_in_valid_locations_temp.append(5)
         
         appliances_in_valid_locations = list(set(appliances_in_valid_locations_temp))

@@ -83,7 +83,7 @@ def create_app_state_tuples(gt, gt_states, co_original_combos, combo_original_st
     loc_combo_states = [[(co_location_combos[i_combo][i_app],      combo_location_states[i_combo][i_app]) for i_app, app in enumerate(combo)]for i_combo, combo in enumerate(co_location_combos)]
     return gt_combo_states, co_combo_states, loc_combo_states
 
-def jaccard3(gt_combo_states, co_combo_states, loc_combo_states):
+def jaccard(gt_combo_states, co_combo_states, loc_combo_states):
     jaccard_co  = []
     jaccard_loc = []
     jaccard_co_states  = []
@@ -139,11 +139,15 @@ def jaccard3(gt_combo_states, co_combo_states, loc_combo_states):
         gt_n_co_states  = list(set(gt_n_co_gt_states) & set(gt_n_co_co_states))
         gt_n_loc_states = list(set(gt_n_loc_gt_states) & set(gt_n_loc_loc_states))
         
+        
+        
+        
+        
         jaccard_co_states.append((len(gt_n_co_states), len(gt_n_co)))
         jaccard_loc_states.append((len(gt_n_loc_states), len(gt_n_loc)))
     return jaccard_co, jaccard_loc, jaccard_co_states, jaccard_loc_states
 
-def jaccard(gt_combo_states, co_combo_states, loc_combo_states):
+def jaccard2(gt_combo_states, co_combo_states, loc_combo_states):
     jaccard_co  = []
     jaccard_loc = []
     jaccard_co_states  = []
@@ -280,8 +284,21 @@ def create_jaccard_apps_states_tuples(jaccard_co, jaccard_loc, jaccard_co_states
     jaccard_co_apps_states = []
     jaccard_loc_apps_states = []
     for i in range(0, len(jaccard_co)):    
-        jaccard_co_apps_states.append((jaccard_co[i],jaccard_co_states[i]))
-        jaccard_loc_apps_states.append((jaccard_loc[i],jaccard_loc_states[i]))
+        ptg_co_apps  = "{0:.2f}".format(float(jaccard_co[i][0]) /float(jaccard_co[i][1]))
+        ptg_loc_apps = "{0:.2f}".format(float(jaccard_loc[i][0])/float(jaccard_loc[i][1]))
+        
+        ptg_co_apps_states = "{0:.2f}".format(float(jaccard_co_states[i][0])/float(jaccard_co_states[i][1]))
+        ptg_loc_apps_states = "{0:.2f}".format(float(jaccard_loc_states[i][0])/float(jaccard_loc_states[i][1]))
+        
+        jacc_res_co  = [jaccard_co[i], ptg_co_apps, jaccard_co_states[i], ptg_co_apps_states]
+        jacc_res_loc = [jaccard_loc[i], ptg_loc_apps, jaccard_loc_states[i], ptg_loc_apps_states]
+       
+#        jaccard_co_apps_states.append((jaccard_co[i],jaccard_co_states[i]))
+#        jaccard_loc_apps_states.append((jaccard_loc[i],jaccard_loc_states[i]))
+        
+        jaccard_co_apps_states.append(jacc_res_co)
+        jaccard_loc_apps_states.append(jacc_res_loc)
+        
     return jaccard_co_apps_states, jaccard_loc_apps_states
     
 def build_results_table(locations_lists, appliances_lists, 

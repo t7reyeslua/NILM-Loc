@@ -52,7 +52,7 @@ class LocationInference(object):
             self.elec = self.dataset.buildings[house_number].elec
         elif dataset_name == 'SMART':
             print(dataset_name + ' not yet implemented')
-        elif dataset_name == 'IAWE':
+        elif dataset_name == 'iAWE':
             print(dataset_name + ' not yet implemented')
         else:
             print('Invalid datasetname')
