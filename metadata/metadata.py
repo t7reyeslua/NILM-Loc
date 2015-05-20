@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-import sys
-mypath = '/home/t7/Dropbox/Documents/TUDelft/Thesis/Code/NILM-Loc'
-sys.path.append(mypath)
+#import sys
+#mypath = '/home/t7/Dropbox/Documents/TUDelft/Thesis/Code/NILM-Loc'
+#sys.path.append(mypath)
 
 import numpy as np
-import settings as settings
+#import settings as settings
 
 appliances_location_eco = {4:['hall'],          #tablet computer charger
                            5:['kitchen'],       #dish washer
@@ -61,7 +61,7 @@ min_power_threshold_redd ={3:1600,  #oven
                            5:2500,  #fridge 
                            6:30,    #dishwasher
                            7:2300,  #kitchen outlets
-                           8:30,    #kitchen outlets
+                           8:55,    #kitchen outlets
                            9:50,    #lightning - mostly ON during the night         
                            10:100,  #washer dryer
                            11:50,   #microwave
@@ -119,7 +119,7 @@ min_power_consuming_threshold_eco = {
 user_dependent_appliances_redd = [9,12,17,18]
 user_dependent_appliances_eco  = [8,11,12,14,15]
                            
-centroids_redd = {5         :np.array([0, 49, 198]), #fridge
+centroids_redd3 = {5         :np.array([0, 49, 198]), #fridge
                   6         :np.array([0, 1075]),    #dishwasher
                   7         :np.array([14,21]),      #kitchen outlets
                   8         :np.array([22,49,78]),   #kitchen outlets
@@ -137,6 +137,24 @@ centroids_redd = {5         :np.array([0, 49, 198]), #fridge
                   (10, 20)  :np.array([0,3750])      #washer dryer
                   }
 
+centroids_redd = {5         :np.array([0, 198]),     #fridge
+                  6         :np.array([0, 1075]),    #dishwasher
+                  7         :np.array([14,21]),      #kitchen outlets
+                  8         :np.array([22,78]),      #kitchen outlets
+                  9         :np.array([0, 82]),      #lightning
+                  11        :np.array([0,1520]),     #microwave
+                  12        :np.array([0,1620]),     #bathroom_gfi
+                  13        :np.array([0,15]),       #electric heater
+                  14        :np.array([0,1450]),     #stove
+                  15        :np.array([0, 1050]),    #kitchen outlets
+                  16        :np.array([0,1450]),     #kitchen outlets
+                  17        :np.array([0,65]),       #lightning
+                  18        :np.array([0, 60]),      #lightning
+                  19        :np.array([0]),          #lightning
+                  (3, 4)    :np.array([0,4200]),     #electric oven
+                  (10, 20)  :np.array([0,3750])      #washer dryer
+                  }
+                  
 #TODO centroids_eco
 centroids_eco = {}
 

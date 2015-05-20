@@ -7,9 +7,9 @@ import numpy as np
 import copy
 from pandas import DataFrame, Series, DateOffset
 
-import sys
-mypath = '/home/t7/Dropbox/Documents/TUDelft/Thesis/Code/NILM-Loc'
-sys.path.append(mypath)
+#import sys
+#mypath = '/home/t7/Dropbox/Documents/TUDelft/Thesis/Code/NILM-Loc'
+#sys.path.append(mypath)
 
 import preprocessing.smooth as smooth
 import settings as settings

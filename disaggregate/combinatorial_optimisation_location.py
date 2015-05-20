@@ -66,8 +66,8 @@ class CombinatorialOptimisation(object):
     
         self.maximum_time_difference = max_time_difference #seconds        
         concurrent_events = location_data.locations[
-        (timestamp - DateOffset(seconds = self.maximum_time_difference)):
-        (timestamp)]# + DateOffset(seconds = self.maximum_time_difference))]
+        timestamp:
+        (timestamp + DateOffset(seconds = self.maximum_time_difference))]# + DateOffset(seconds = self.maximum_time_difference))]
         
         locs = []
         [locs.extend(j) for j in concurrent_events.values]
@@ -181,7 +181,7 @@ class CombinatorialOptimisation(object):
         #This method constructs only the valid state combinations from the beginning.
         
         #TODO any or all
-        appliances_in_valid_locations_temp = [app for app in loc.metadata.appliances_location if any(locs in loc.metadata.appliances_location[app] for locs in valid_locations)]
+        appliances_in_valid_locations_temp = [app for app in loc.metadata.appliances_location if all(locs in loc.metadata.appliances_location[app] for locs in valid_locations)]
         appliances_in_valid_locations_temp.extend(last_combination_appliances)
         
         #Fridge mayalways start running
@@ -247,7 +247,7 @@ class CombinatorialOptimisation(object):
         index = index_sorted[np.where(diff1 <= diff2, idx3, idx2)]
         residual = test_value - known_array[index]
         
-        priority_enabled = True
+        priority_enabled = False
         if (priority_enabled):
             if (priority_index not in (-1, index)): #only if it is a valid index or it has not yet selected as index
                 residual_priority = test_value - known_array[priority_index]
@@ -385,8 +385,7 @@ class CombinatorialOptimisation(object):
         return combos, residuals
 
 
-    def disaggregate(self, mains, output_datastore, location_data=None, mains_values=None, **load_kwargs):
-        MIN_CHUNK_LENGTH = 100
+    def disaggregate(self, mains, output_datastore, location_data=None, mains_values=None, baseline=None, **load_kwargs):
 
         from sklearn.utils.extmath import cartesian
         import warnings
@@ -396,16 +395,23 @@ class CombinatorialOptimisation(object):
         centroids = [model['states'] for model in self.model]
         state_combinations = cartesian(centroids)
 
-        # Add vampire power to the model
-        #TODO vampire power correction
-        correction = 28.35
-        vampire_power = mains.vampire_power() #- correction
+        try:
+            timezone = location_data.dataset.metadata.get('timezone')
+        except Exception:
+            timezone = ''
+
+        vampire_power = baseline
+        if baseline is None:
+            vampire_power = mains.vampire_power() #- correction
         n_rows = state_combinations.shape[0]
         vampire_power_array = np.zeros((n_rows, 1)) + vampire_power
         state_combinations = np.hstack((state_combinations, vampire_power_array))
-        print("vampire_power = {} watts".format(vampire_power))
-
+        print("vampire_power = {} watts".format(vampire_power))        
         summed_power_of_each_combination = np.sum(state_combinations, axis=1)
+        
+        self.vampire_power = vampire_power
+        self.state_combinations_all = state_combinations
+        self.summed_power_of_each_combination_all = summed_power_of_each_combination
 
                 
         resample_seconds = load_kwargs.pop('resample_seconds', 60)
@@ -422,7 +428,9 @@ class CombinatorialOptimisation(object):
         else:
             mains_values = [mains_values]
             using_series = True
-            
+        
+        self.mains_used = mains_values        
+        
         self.location_used = 0
         self.location_loop = 0
         self.co_indices_original = []
@@ -432,9 +440,6 @@ class CombinatorialOptimisation(object):
         self.co_combos_location = []
         for chunk in mains_values:
 
-            # Check that chunk is sensible size before resampling
-            if len(chunk) < MIN_CHUNK_LENGTH:
-                continue
 
             # Record metadata
             if using_series:
@@ -478,9 +483,9 @@ class CombinatorialOptimisation(object):
         
         ##################################
         # Add metadata to output_datastore
-        self.add_metadata(output_datastore, measurement, timeframes, mains, load_kwargs)
+        self.add_metadata(output_datastore, measurement, timeframes, mains, timezone, load_kwargs)
 
-    def add_metadata(self, output_datastore, measurement, timeframes, mains, load_kwargs):
+    def add_metadata(self, output_datastore, measurement, timeframes, mains, timezone, load_kwargs):
 
 
         date_now = datetime.now().isoformat().split('.')[0]
@@ -518,7 +523,8 @@ class CombinatorialOptimisation(object):
 
         dataset_metadata = {'name': output_name, 'date': date_now,
                             'meter_devices': meter_devices,
-                            'timeframe': total_timeframe.to_dict()}
+                            'timeframe': total_timeframe.to_dict(),
+                            'timezone': timezone}
         output_datastore.save_metadata('/', dataset_metadata)
 
         # Building metadata

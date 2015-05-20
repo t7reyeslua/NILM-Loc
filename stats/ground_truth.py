@@ -4,7 +4,7 @@ import numpy as np
 
 class GroundTruth(object):
     
-    def __init__(self, loc, co, sample_period=60, resample=True, good_sections_only=True):
+    def __init__(self, loc, co, sample_period=60, resample=True, good_sections_only=True, baseline=None):
         self.loc = loc
         self.co = co
         
@@ -20,7 +20,7 @@ class GroundTruth(object):
         self.power_series_apps = None    
         self.power_series_mains_with_timestamp = None
                 
-        self.vampire_power = None
+        self.vampire_power = baseline
         self.state_combinations = None
         self.summed_power_of_each_combination = None
         
@@ -116,9 +116,12 @@ class GroundTruth(object):
         from sklearn.utils.extmath import cartesian
         centroids = [model['states'] for model in self.co.model]
         state_combinations = cartesian(centroids)
-        
-        correction = 0 #28.35
-        vampire_power = mains.vampire_power() - correction
+                
+        baseline = self.vampire_power
+        if baseline is None:
+            vampire_power = mains.vampire_power() 
+        else:
+            vampire_power = self.vampire_power
         n_rows = state_combinations.shape[0]
         vampire_power_array = np.zeros((n_rows, 1)) + vampire_power
         state_combinations = np.hstack((state_combinations, vampire_power_array))
@@ -151,20 +154,20 @@ class GroundTruth(object):
                 timestamp = chunk.index[ts]
                 
                 #Get all the events that happened in the last minute
-                concurrent_events = self.loc.events_locations['Locations'][(timestamp - DateOffset(seconds = offset)):(timestamp)]
-                concurrent_appliances = self.loc.events_locations['Events'][(timestamp - DateOffset(seconds = offset)):(timestamp)]
+                concurrent_events =  self.loc.events_locations['Locations'][timestamp:(timestamp + DateOffset(seconds = offset))]
+                concurrent_appliances = self.loc.events_locations['Events'][timestamp:(timestamp + DateOffset(seconds = offset))]
                 
-                
+                #Find the set of apps that are ON at this point in time
                 gt_appliances = None
                 gt_apps = []
                 for gt_event_ts in self.loc.appliances_status.index:
-                    if gt_event_ts <= timestamp:
+                    if gt_event_ts <= (timestamp + DateOffset(seconds = offset)):
                         gt_appliances = self.loc.appliances_status[str(gt_event_ts)]
                         gt_ts = gt_event_ts
                 if gt_appliances is not None:
                     gt_apps = [v for i,v in enumerate(gt_appliances) if gt_appliances.values[0][i] == True]  
                 
-                
+                #Get the table of possible state combos from the set of apps that are ON at this point in time
                 if (len(gt_apps) == 0):
                     gt.append([])
                     gt_sums.append(0)
@@ -201,9 +204,9 @@ class GroundTruth(object):
                 locations_lists.append(locations_within_timespan)
                 appliances_lists.append(appliances_within_timespan)
         
-        gt[0] = gt[1]
-        gt_states[0] = gt_states[1]   
-        gt_sums[0] = gt_sums[1]
+        #gt[0] = gt[1]
+        #gt_states[0] = gt_states[1]   
+        #gt_sums[0] = gt_sums[1]
         
         self.event_locations = locations_lists
         self.event_appliances = appliances_lists
@@ -228,34 +231,49 @@ class GroundTruth(object):
         for app in gt_apps:
             values[app] = gt_power_series[app][timestamp] 
         
-        try:
-            v34 = values[3] + values[4]
-            del values[3]
-            del values[4]
-            values[(3,4)] = v34
-        except Exception:
-            tpt = 0  
-        
-        try:
-            v1020 = values[10] + values[20]
-            del values[10]
-            del values[20]
-            values[(10,20)] = v1020
-        except Exception:
-            tpt = 0
-        #gt_apps = list(gt_apps_orig)
+#        try:
+#            v34 = values[3] + values[4]
+#            del values[3]
+#            del values[4]
+#            values[(3,4)] = v34
+#        except Exception:
+#            tpt = 0  
+#        
+#        try:
+#            v1020 = values[10] + values[20]
+#            del values[10]
+#            del values[20]
+#            values[(10,20)] = v1020
+#        except Exception:
+#            tpt = 0
+            
+            
         #Take care of REDDs tuples names (3,4) and (10,20)   
-        
-        
         if loc.name == 'REDD':
-            if 10 in gt_apps:
-                gt_apps.remove(10)
-                gt_apps.remove(20)
-                gt_apps.append((10,20))
+            v34 = 0
+            v1020 = 0
             if 3 in gt_apps:
+                v34 += values[3]
+                del values[3]
                 gt_apps.remove(3)
+            if 4 in gt_apps:
+                v34 += values[4]
+                del values[4]
                 gt_apps.remove(4)
-                gt_apps.append((3,4))
+            if 10 in gt_apps:
+                v1020 += values[10]
+                del values[10]
+                gt_apps.remove(10)
+            if 20 in gt_apps:
+                v1020 += values[20]
+                del values[20]
+                gt_apps.remove(20)
+            if (3 in gt_apps) or (4 in gt_apps):    
+                gt_apps.append((3,4))            
+                values[(3,4)] = v34
+            if (10 in gt_apps) or (20 in gt_apps): 
+                gt_apps.append((10,20))
+                values[(10,20)] = v1020
            
         centroids_gt = []
         ordering = []
@@ -278,6 +296,7 @@ class GroundTruth(object):
         centroids_on = {}
         for i,centroid_array in enumerate(centroids_gt):
             cd = [centroid for centroid in centroid_array if centroid != 0]
+            #cd = [centroid for centroid in centroid_array]
             centroids_on[gt_apps[i]] = np.array(cd)
             
         state_combinations =  [(v, self.find_nearest(centroids_on[v], values[v])) for v in values]   

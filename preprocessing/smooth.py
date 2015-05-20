@@ -46,7 +46,10 @@ def smooth(serie,window_len=11,window='hanning'):
         raise ValueError, "smooth only accepts 1 dimension arrays."
 
     if x.size < window_len:
-        raise ValueError, "Input vector needs to be bigger than window size."
+        window_len = x.size/2
+        if window_len % 2 != 0:
+            window_len -= 1
+        #raise ValueError, "Input vector needs to be bigger than window size."
 
 
     if window_len<3:
