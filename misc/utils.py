@@ -30,7 +30,7 @@ def convert_dataset(dataset_name, source, outputhdf5):
     elif dataset_name == settings.dataset_names[3]:        
         convert_iawe(source, outputhdf5)
 
-def disaggregate_original_co(h5_input, h5_output, centroids=None):
+def disaggregate_original_co(h5_input, h5_output,dataset_start_date_disag, dataset_end_date_disag, centroids=None ):
     import nilmtk.disaggregate as original_nilmtk
     ds = DataSet(h5_input)
     elec = ds.buildings[1].elec
@@ -49,7 +49,8 @@ def disaggregate_original_co(h5_input, h5_output, centroids=None):
     
     
     #Disaggregate
-    #redd.set_window(start=dataset_start_date_disag, end=dataset_end_date_disag)
+    ds.set_window(start=dataset_start_date_disag, end=dataset_end_date_disag)
+    elec = ds.buildings[1].elec
     output_plain_co = HDFDataStore(h5_output, 'w')
     plain_co.disaggregate(elec.mains(), output_plain_co)
     output_plain_co.close()
@@ -92,5 +93,42 @@ def get_disaggregation_predictions(disag_elec, vampire_power, start_date=None, e
     res = DataFrame(r, index=lm.index)
     return res
     
+def plot(elec, meters_id, start_date, end_date):
+    from pylab import rcParams
+    import matplotlib.pyplot as plt
+    
+    rcParams['figure.figsize'] = (14, 6)
+    plt.style.use('ggplot')
+    power_series = {}
+    
+    
+    for meter in meters_id:
+        tag = elec[meter].appliances[0].label(pretty=True) + ', ' + str(meter)
+        power_series[tag] = list(elec[meter].power_series())[0]
+    
+    df = DataFrame(power_series)
+    df[start_date:end_date].plot()
+    
+    return df
 
-
+def plot_with_mains(elec, meters_id, start_date, end_date, mains=None):
+    from pylab import rcParams
+    import matplotlib.pyplot as plt
+    
+    rcParams['figure.figsize'] = (14, 6)
+    plt.style.use('ggplot')
+    power_series = {}
+    
+    if mains is None:
+        mains = list(elec.mains().power_series())[0]
+    power_series['mains'] = mains
+    
+    for meter in meters_id:
+        tag = elec[meter].appliances[0].label(pretty=True) + ', ' + str(meter)
+        power_series[tag] = list(elec[meter].power_series())[0]
+    
+    df = DataFrame(power_series)
+    
+    df[start_date:end_date].plot()
+    
+    return df

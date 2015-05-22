@@ -34,7 +34,7 @@ plt.style.use('ggplot')
 
 #ADD NILM-Loc path to PYTHON PATH in IDE preferences
 
-settings.akshay = False
+settings.akshay = True
 if settings.akshay:
     root_path = settings.path_root_b
 else:
@@ -58,13 +58,13 @@ h5_disag_redd_original = ds_path + 'redd-disag-original-modified-centroids.h5'
 dataset_name = 'REDD'
 #dataset_start_date_disag = None
 #dataset_end_date_disag   = '2011-04-19 00:00:00'
-dataset_start_date_disag = '2011-04-18 10:00:00'
-dataset_end_date_disag   = '2011-04-18 10:10:00'
+dataset_start_date_disag = '2011-04-18 00:00:00'
+dataset_end_date_disag   = '2011-04-24 23:10:00'
 
 manual_centroids = True
 nclusters = 2
 dataset_start_date_train = '2011-04-19 00:00:00'
-dataset_end_date_train = '2011-04-27 00:00:00'
+dataset_end_date_train = '2011-04-22 00:00:00'
 
 
 #ORIGINAL CO DISAGGREGATION====================================================

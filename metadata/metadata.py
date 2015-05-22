@@ -119,7 +119,7 @@ min_power_consuming_threshold_eco = {
 user_dependent_appliances_redd = [9,12,17,18]
 user_dependent_appliances_eco  = [8,11,12,14,15]
                            
-centroids_redd3 = {5         :np.array([0, 49, 198]), #fridge
+centroids_redd = {5         :np.array([0, 49, 198]), #fridge
                   6         :np.array([0, 1075]),    #dishwasher
                   7         :np.array([14,21]),      #kitchen outlets
                   8         :np.array([22,49,78]),   #kitchen outlets
@@ -137,7 +137,7 @@ centroids_redd3 = {5         :np.array([0, 49, 198]), #fridge
                   (10, 20)  :np.array([0,3750])      #washer dryer
                   }
 
-centroids_redd = {5         :np.array([0, 198]),     #fridge
+centroids_redd2 = {5         :np.array([0, 198]),     #fridge
                   6         :np.array([0, 1075]),    #dishwasher
                   7         :np.array([14,21]),      #kitchen outlets
                   8         :np.array([22,78]),      #kitchen outlets

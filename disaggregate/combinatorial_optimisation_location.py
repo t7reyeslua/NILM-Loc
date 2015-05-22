@@ -166,7 +166,9 @@ class CombinatorialOptimisation(object):
         # if there is an appliance OFF that was ON the last time. This only applies to 
         # appliances in the list of user dependent appliances (location_data.user_dependent_appliances)
                                          
-                                         
+        if len(last_state_combination) == 0:
+            return True, []            
+            
         changed_to_ON, changed_to_OFF = self.get_appliances_that_changed(state_combination, last_state_combination, appliances_order, last_order_of_appliances)
         
         locations_ON  = self.get_locations_of_appliances(changed_to_ON, location_data)
@@ -331,11 +333,11 @@ class CombinatorialOptimisation(object):
         
         #TODO first combination known
         #Everything is possible for the first one
-        last_state_combination = -1
+        last_state_combination = []
         #last_combination_appliances = location_data.appliances_location.keys()
-        last_combination_appliances = [7,8,9,17,18]
+        last_combination_appliances = [7,8,17,18]
         #last_order_of_appliances = appliances_order
-        last_order_of_appliances = [7,8,9,17,18]
+        last_order_of_appliances = [7,8,17,18]
         
         for i, test_value in enumerate(test_array.values):            
             

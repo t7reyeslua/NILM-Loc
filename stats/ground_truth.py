@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 from pandas import DataFrame, Series, DateOffset
 import numpy as np 
+import cPickle as pickle
 
 class GroundTruth(object):
     
-    def __init__(self, loc, co, sample_period=60, resample=True, good_sections_only=True, baseline=None):
+    def __init__(self, loc, co, sample_period=60, resample=True, good_sections_only=True, baseline=None, gt_path=None):
         self.loc = loc
         self.co = co
         
@@ -36,6 +37,85 @@ class GroundTruth(object):
                 
         self.comparison = None
         self.comparison_extended = None
+        
+        if gt_path is not None:
+            self.read_object(gt_path)
+        return
+
+    
+    def save_object(self, fnpath):
+        objects = {}
+                
+        objects['sample_period'] = self.sample_period
+        objects['resample'] = self.resample
+        objects['good_sections_only'] = self.good_sections_only
+        
+        objects['power_series_mains'] = self.power_series_mains
+        objects['power_series_mains_from_apps'] = self.power_series_mains_from_apps 
+        objects['power_series_channels_table'] = self.power_series_channels_table
+        objects['power_series_apps_table'] = self.power_series_apps_table
+        objects['power_series_channels'] = self.power_series_channels
+        objects['power_series_apps'] = self.power_series_apps    
+        objects['power_series_mains_with_timestamp'] = self.power_series_mains_with_timestamp
+                
+        objects['vampire_power'] = self.vampire_power
+        objects['state_combinations'] = self.state_combinations
+        objects['summed_power_of_each_combination'] = self.summed_power_of_each_combination
+        
+        objects['event_locations'] = self.event_locations
+        objects['event_appliances'] = self.event_appliances
+        objects['timestamps'] = self.timestamps
+        objects['mains_values'] = self.mains_values
+        objects['gt_appliances'] = self.gt_appliances
+        objects['gt_appliances_states'] = self.gt_appliances_states
+        objects['gt_appliances_summed_power'] = self.gt_appliances_summed_power
+        objects['gt_appliances_residual'] = self.gt_appliances_residual
+        objects['ground_truth_table'] = self.ground_truth_table
+                
+        objects['comparison'] = self.comparison
+        objects['comparison_extended'] = self.comparison_extended       
+            
+        pickle.dump( objects, open(fnpath + self.loc.name + '_gt.p', "wb" ) )        
+        return
+        
+    def read_object(self, fnpath):
+        print('Reading GroundTruth object from: ' + fnpath)
+        objects = pickle.load(open(fnpath + self.loc.name + '_gt.p', "rb"))
+        self.dismantle_object(objects)
+        return objects
+        
+    def dismantle_object(self, objects):       
+        
+        self.sample_period = objects['sample_period']
+        self.resample = objects['resample']
+        self.good_sections_only = objects['good_sections_only']
+        
+        self.power_series_mains = objects['power_series_mains']
+        self.power_series_mains_from_apps = objects['power_series_mains_from_apps'] 
+        self.power_series_channels_table = objects['power_series_channels_table']
+        self.power_series_apps_table = objects['power_series_apps_table']
+        self.power_series_channels = objects['power_series_channels']
+        self.power_series_apps = objects['power_series_apps']    
+        self.power_series_mains_with_timestamp = objects['power_series_mains_with_timestamp']
+                
+        self.vampire_power = objects['vampire_power']
+        self.state_combinations = objects['state_combinations']
+        self.summed_power_of_each_combination = objects['summed_power_of_each_combination']
+        
+        self.event_locations = objects['event_locations']
+        self.event_appliances = objects['event_appliances']
+        self.timestamps = objects['timestamps']
+        self.mains_values = objects['mains_values']
+        self.gt_appliances = objects['gt_appliances']
+        self.gt_appliances_states = objects['gt_appliances_states']
+        self.gt_appliances_summed_power = objects['gt_appliances_summed_power']
+        self.gt_appliances_residual = objects['gt_appliances_residual']
+        self.ground_truth_table = objects['ground_truth_table']
+                
+        self.comparison = objects['comparison']
+        self.comparison_extended = objects['comparison_extended']
+        
+        print('GroundTruth object ready.')       
         return
         
     def generate_mains_power_series(self):
@@ -149,10 +229,22 @@ class GroundTruth(object):
         gt_residuals = []
         gt_states = []
         offset = 60
-        for chunk in self.power_series_mains:
+        
+        ltotal = 0
+        for i,chunk in enumerate(self.power_series_mains):
+            ltotal += len(chunk)
+        
+        import time
+        start_time = time.time()
+        idx = 0
+        for i,chunk in enumerate(self.power_series_mains):
+            print('Calculating GT for chunk ' + str(i+1) + ' of ' + str(len(self.power_series_mains)) )
+            lchunk = len(chunk)
             for ts, value in enumerate(chunk):
-                timestamp = chunk.index[ts]
-                
+                timestamp = chunk.index[ts]                
+                idx += 1
+                telapsed = time.time() - start_time
+                print(str(i+1) + '/' + str(len(self.power_series_mains)) + ' | ['+ str(idx) + '/' + str(ltotal) + '][ ' + str(ts+1) + '/' + str(lchunk) + ']: ' + str(timestamp) + ' - ' + str(telapsed))
                 #Get all the events that happened in the last minute
                 concurrent_events =  self.loc.events_locations['Locations'][timestamp:(timestamp + DateOffset(seconds = offset))]
                 concurrent_appliances = self.loc.events_locations['Events'][timestamp:(timestamp + DateOffset(seconds = offset))]
@@ -165,7 +257,7 @@ class GroundTruth(object):
                         gt_appliances = self.loc.appliances_status[str(gt_event_ts)]
                         gt_ts = gt_event_ts
                 if gt_appliances is not None:
-                    gt_apps = [v for i,v in enumerate(gt_appliances) if gt_appliances.values[0][i] == True]  
+                    gt_apps = [v for j,v in enumerate(gt_appliances) if gt_appliances.values[0][j] == True]  
                 
                 #Get the table of possible state combos from the set of apps that are ON at this point in time
                 if (len(gt_apps) == 0):
@@ -361,7 +453,7 @@ class GroundTruth(object):
             del gg['diff1']
             del gg['diff2']
         except Exception:
-            dummy = 0
+            print('')
             
         gg['Loc Events'] = self.loc.events_apps_1min['Apps']
         apps = self.loc.metadata.get_channels()

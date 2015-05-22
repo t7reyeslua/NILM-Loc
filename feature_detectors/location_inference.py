@@ -6,7 +6,7 @@ from pandas import *
 import numpy as np
 import copy
 from pandas import DataFrame, Series, DateOffset
-
+import cPickle as pickle
 #import sys
 #mypath = '/home/t7/Dropbox/Documents/TUDelft/Thesis/Code/NILM-Loc'
 #sys.path.append(mypath)
@@ -30,13 +30,13 @@ class LocationInference(object):
           
     minimum_timespan_threshold = 30 #seconds
           
-    def __init__(self, dataset_name, smoothen=True, h5_path=None, house_number=1):  
+    def __init__(self, dataset_name, smoothen=True, h5_path=None, loc_path=None, house_number=1):  
         """
         Initialize the object depending on the dataset being used.
         Probably good idea to implement being able to choose the house number
         and probably even pass the min_power_threshold as parameter.        
         """
-        
+        self.init_values()
         self.smoothed = smoothen
         self.name = dataset_name
         self.metadata = Metadata(dataset_name)
@@ -57,7 +57,95 @@ class LocationInference(object):
         else:
             print('Invalid datasetname')
             
+        if loc_path is not None:
+            self.read_object(loc_path)
+            
+    def init_values(self):
+        self.name = None
+        self.appliances_ON_times = None
+        self.appliances_consuming_times = None
+        self.events = None
+        self.events_consuming = None
+        self.appliances_transitions = None
+        self.triggers = None
+        self.appliances_triggers = None
+        self.appliances_triggers_reduced = None
+        self.events_locations = None
+        self.locations = None
+        self.concurrent_users = None
+        self.appliances_status = None
+        self.count_appliances_ON_OFF = None
+        self.count_appliances_consumption_events = None
+        self.count_user_interactions_ON_OFF = None
+        self.count_user_interactions = None
+        self.events_apps_1min = None
+        self.events_apps_1day = None
+        self.minutes_with_events = None
+        self.daily_events = None
+        self.daily_events_per_app = None
+        return
+    
+    def save_object(self, fnpath):
+        objects = {}
         
+        objects['name'] = self.name
+        objects['appliances_ON_times'] = self.appliances_ON_times
+        objects['appliances_consuming_times'] = self.appliances_consuming_times
+        objects['events'] = self.events
+        objects['events_consuming'] = self.events_consuming
+        objects['appliances_transitions'] = self.appliances_transitions
+        objects['triggers'] = self.triggers
+        objects['appliances_triggers'] = self.appliances_triggers
+        objects['appliances_triggers'] = self.appliances_triggers
+        objects['events_locations'] = self.events_locations
+        objects['locations'] = self.locations
+        objects['concurrent_users'] = self.concurrent_users
+        objects['appliances_status'] = self.appliances_status
+        objects['count_appliances_ON_OFF'] = self.count_appliances_ON_OFF
+        objects['count_appliances_consumption_events'] = self.count_appliances_consumption_events
+        objects['count_user_interactions_ON_OFF'] = self.count_user_interactions_ON_OFF
+        objects['count_user_interactions'] = self.count_user_interactions
+        objects['events_apps_1min'] = self.events_apps_1min
+        objects['events_apps_1day'] = self.events_apps_1day
+        objects['minutes_with_events'] = self.minutes_with_events
+        objects['daily_events'] = self.daily_events
+        objects['daily_events_per_app'] = self.daily_events_per_app        
+            
+        pickle.dump( objects, open(fnpath + self.name + '_location.p', "wb" ) )        
+        return
+        
+    def read_object(self, fnpath):
+        print('Reading LocationInference object from: ' + fnpath)
+        objects = pickle.load(open(fnpath + self.name + '_location.p', "rb"))
+        self.dismantle_object(objects)
+        return objects
+        
+    def dismantle_object(self, objects):        
+        self.name = objects['name'] 
+        self.appliances_ON_times = objects['appliances_ON_times'] 
+        self.appliances_consuming_times = objects['appliances_consuming_times'] 
+        self.events = objects['events'] 
+        self.events_consuming = objects['events_consuming'] 
+        self.appliances_transitions = objects['appliances_transitions'] 
+        self.triggers = objects['triggers'] 
+        self.appliances_triggers = objects['appliances_triggers'] 
+        self.appliances_triggers_reduced = objects['appliances_triggers_reduced'] 
+        self.events_locations = objects['events_locations'] 
+        self.locations = objects['locations'] 
+        self.concurrent_users = objects['concurrent_users'] 
+        self.appliances_status = objects['appliances_status'] 
+        self.count_appliances_ON_OFF = objects['count_appliances_ON_OFF'] 
+        self.count_appliances_consumption_events = objects['count_appliances_consumption_events'] 
+        self.count_user_interactions_ON_OFF = objects['count_user_interactions_ON_OFF'] 
+        self.count_user_interactions = objects['count_user_interactions'] 
+        self.events_apps_1min = objects['events_apps_1min'] 
+        self.events_apps_1day = objects['events_apps_1day'] 
+        self.minutes_with_events = objects['minutes_with_events'] 
+        self.daily_events = objects['daily_events'] 
+        self.daily_events_per_app = objects['daily_events_per_app']  
+        print('LocationInference object ready.')       
+        return
+    
     def calculate_ON_times(self):
         """
         For each appliance being read, calculate the times at which it was 
@@ -371,7 +459,7 @@ class LocationInference(object):
             
         r = {'Mins with events':mins_events}   
         dd = DataFrame(r, index=index1d)
-        self.count_minutes_with_events = dd
+        self.minutes_with_events = dd
         
 
     def count_daily_events(self):
@@ -396,8 +484,8 @@ class LocationInference(object):
             lnappsd.append(nappsd)
         r = {'nLocs': lnlocs, 'nApps': lnapps, 'nLocsDiff': lnlocsd, 'nAppsDiff': lnappsd, 'Locs': lslocs, 'Apps': lsapps} 
         dd = DataFrame(r, index=self.events_apps_1day.index)
-        dd['Mins with events'] = self.count_minutes_with_events['Mins with events']
-        self.count_daily_events = dd
+        dd['Mins with events'] = self.minutes_with_events['Mins with events']
+        self.daily_events = dd
 
     def count_daily_events_per_app(self):
         apps = self.metadata.get_channels()
@@ -410,7 +498,7 @@ class LocationInference(object):
                 r[app].append(n)
 
         dd = DataFrame(r, index=self.events_apps_1day.index)
-        self.count_daily_events_per_app = dd
+        self.daily_events_per_app = dd
 
     def infer_locations(self):
         self.calculate_ON_times()
